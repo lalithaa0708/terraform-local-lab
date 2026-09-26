@@ -1,0 +1,12 @@
+# Terraform state — can contain secrets in plain text. NEVER commit.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Real variable values
+*.tfvars
+!*.tfvars.example
+
+crash.log
+crash.*.log

@@ -1,0 +1,24 @@
+# A three-node Kubernetes cluster that runs on your laptop, free.
+#
+# Create it with:
+#   kind create cluster --name tf-cluster --config kind-config.yaml
+#
+# Check it:
+#   kubectl get nodes        (should list 3 nodes)
+#
+# Delete it when you're done:
+#   kind delete cluster --name tf-cluster
+#
+# extraPortMappings forwards localhost:8081 into the cluster, so the
+# NodePort service defined in main.tf becomes reachable from your browser.
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8081
+        protocol: TCP
+  - role: worker
+  - role: worker

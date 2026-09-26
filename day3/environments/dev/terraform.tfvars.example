@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars (gitignored) before running.
+#   cp terraform.tfvars.example terraform.tfvars
+
+db_password = "ChangeMe_LocalDev_123"

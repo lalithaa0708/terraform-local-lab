@@ -1,0 +1,6 @@
+# Copy this file to terraform.tfvars and change the password.
+# terraform.tfvars is gitignored — it never gets committed.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+
+db_password = "ChangeMe_LocalDev_123"
