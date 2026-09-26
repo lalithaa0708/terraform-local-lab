@@ -1,103 +1,121 @@
 # Local Infrastructure-as-Code Lab
 
-A complete multi-tier environment provisioned with Terraform — no cloud account required.
-Everything runs on your own machine using Docker and a local Kubernetes cluster (kind).
+I wanted to learn Terraform properly, but my AWS account got stuck in
+verification and I didn't want to wait. So I built the same three-tier
+architecture locally instead — Docker for the first half, a real Kubernetes
+cluster for the second. Turns out almost none of the important parts are
+cloud-specific.
 
-## The problem this solves
+## Why I built it this way
 
-Infrastructure created by clicking through consoles drifts between environments.
-Code works in dev and breaks in prod, nobody knows what exists, and creating a new
-environment takes days. This project defines the entire environment as code, so
-dev and prod are generated from identical modules and can be created or destroyed
-with a single command.
+The problem Terraform exists to solve is that infrastructure built by clicking
+through a console slowly drifts apart. Someone sets up dev in March, someone
+else sets up prod in September, and six months later a deploy fails at 9pm
+because one of them is running a different Postgres version. Nobody wrote
+anything down, so finding the difference means comparing two browser tabs.
 
-## What's inside
-
-```
-day1/          Your first Terraform resource (one container)
-day2/          Full three-tier stack: isolated networks, database, app tier
-day3/          The same stack refactored into reusable modules + dev/prod
-day4/          Kubernetes: namespace, secret, deployment, service, health probes
-```
-
-Work through them in order. Each folder is a standalone Terraform project.
-
-## Prerequisites
+So the point of this repo is that dev and prod come from the same code. You
+can see it here:
 
 ```bash
-brew install --cask docker      # then open Docker Desktop once
-brew install terraform kind kubectl helm
+diff day3/environments/dev/main.tf day3/environments/prod/main.tf
 ```
 
-Verify:
+Three lines differ — the name, the replica count, the port. Everything else
+comes from shared modules, so the two environments physically can't drift.
 
-```bash
-docker ps          # should print a table, not an error
-terraform version  # should print v1.x
-```
+## What's here
 
-## How to run any day
+    day1/   One container. Just enough to learn plan/apply/destroy.
+    day2/   Three tiers: public network, private network, Postgres, app layer.
+    day3/   The same thing refactored into modules, with dev and prod.
+    day4/   Kubernetes — namespace, secret, deployment, service, probes.
+
+They're meant to be worked through in order. Each one is a standalone
+Terraform project.
+
+## Running it
+
+You'll need Docker Desktop running, plus Terraform, kind and kubectl.
 
 ```bash
 cd day2
 cp terraform.tfvars.example terraform.tfvars
 terraform init
-terraform plan
 terraform apply
 ```
 
-Tear down when finished:
+Then http://localhost:8080. `terraform destroy` when you're done.
+
+For day4 you need a cluster first:
 
 ```bash
-terraform destroy
+kind create cluster --name tf-cluster --config day4/kind-config.yaml
 ```
 
-## Architecture (day2 / day3)
+## The architecture
 
-```
                     localhost:8080
                           |
                   [ frontend network ]
                           |
                    +-------------+
-                   |  app tier   |   (scaled with app_replicas)
+                   |  app tier   |   scaled by app_replicas
                    +-------------+
                           |
-                  [ backend network ]      internal = true
-                          |                no route to the internet
+                  [ backend network ]   internal = true
+                          |
                    +-------------+
-                   |  postgres   |         persistent volume
+                   |  postgres   |   persistent volume
                    +-------------+
+
+The backend network is marked `internal`, which is the local equivalent of
+putting a database in a private subnet. You can check it actually works:
+
+```bash
+docker exec dev-app-1 ping -c 2 dev-database   # replies
+docker exec dev-database ping -c 2 1.1.1.1     # Network unreachable
 ```
 
-The backend network is marked `internal`, so the database is genuinely unreachable
-from outside — the same isolation a private subnet provides in a cloud VPC.
+The second one is worth noticing. It doesn't time out, it says the network is
+unreachable — there's no route at all, so there's nothing to block.
 
-## Results to measure and record
+## Things that tripped me up
 
-- Time a full `terraform apply` and note it in your README
-- Run `checkov -d .` before and after fixing findings; record both counts
-- Screenshot `docker ps` with dev and prod running simultaneously
-- Screenshot the app recovering after `kubectl delete pod -n dev --all`
-## Results
+**You can't run nginx as a non-root user on port 80.** Checkov flagged the
+container for running as root, and the fix isn't just setting `runAsNonRoot`.
+Ports below 1024 are privileged, so I had to switch to
+`nginxinc/nginx-unprivileged`, which listens on 8080, and update the probes
+and service target port to match.
 
-- **Provisioning time:** full environment from zero in under 2 minutes, versus hours of manual setup
-- **No environment drift:** dev and prod generated from identical modules; only replica count and port differ
-- **Network isolation verified:** the database container has no route to the internet — `ping` from inside returns "Network unreachable", not a timeout, meaning no route exists rather than traffic being blocked
-- **Self-healing demonstrated:** deleting all pods leaves the service available throughout, because readiness probes withhold traffic until replacements are serving
-- **Drift detection:** scaling the deployment manually with `kubectl` causes `terraform plan` to report the difference; `apply` reconciles it
+**Two environments can't both own the same Docker image.** Running
+`terraform destroy` on dev failed because prod's container was still using
+`postgres:16-alpine`, and dev's state thought it owned that image. Same
+problem you'd get with two state files both managing a shared VPC. Destroying
+prod first fixed it, but the real answer is that shared resources shouldn't be
+declared in both.
+
+**Secrets in environment variables leak more than I realised.** Checkov
+suggested mounting them as files instead. Env vars turn up in
+`kubectl describe pod`, in crash dumps, and every child process inherits them.
+A mounted file only exists for whatever opens it, and it updates when the
+secret changes instead of needing a pod restart.
 
 ## Security
 
-Checkov runs against all Terraform: **28 checks pass, 2 accepted with rationale.**
+Checkov runs over all of it: 28 checks pass, 2 I've accepted on purpose.
 
-Fixed during development:
-- Non-root execution (`runAsNonRoot`, UID 101) at both pod and container level
-- All Linux capabilities dropped; privilege escalation disabled
-- Switched to `nginx-unprivileged` — standard nginx requires root to bind port 80
-- Secrets mounted as files rather than environment variables, since env vars appear in `kubectl describe`, crash dumps, and inherited child processes
+Fixed:
+- runs as UID 101, non-root, at both pod and container level
+- all Linux capabilities dropped, privilege escalation off
+- unprivileged nginx image (see above)
+- secret mounted as a file rather than an env var
 
-Accepted:
-- `CKV_K8S_22` (read-only root filesystem) — nginx requires writable `/tmp` and cache paths; would need emptyDir mounts
-- `CKV_K8S_43` (image digest pinning) — tags used for maintainability in a demo; production would pin digests with automated updates
+Accepted, with reasons:
+- `CKV_K8S_22` read-only root filesystem — nginx writes to /tmp and its cache
+  dir, so this needs emptyDir mounts I haven't added yet
+- `CKV_K8S_43` image digest pinning — sensible for production, but digests
+  change on every rebuild and this is a learning repo
 
+
+N
