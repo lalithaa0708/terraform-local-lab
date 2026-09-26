@@ -77,10 +77,6 @@ docker exec dev-app-1 ping -c 2 dev-database   # replies
 docker exec dev-database ping -c 2 1.1.1.1     # Network unreachable
 ```
 
-The second one is worth noticing. It doesn't time out, it says the network is
-unreachable — there's no route at all, so there's nothing to block.
-
-## Things that tripped me up
 
 **You can't run nginx as a non-root user on port 80.** Checkov flagged the
 container for running as root, and the fix isn't just setting `runAsNonRoot`.
@@ -118,4 +114,4 @@ Accepted, with reasons:
   change on every rebuild and this is a learning repo
 
 
-N
+
