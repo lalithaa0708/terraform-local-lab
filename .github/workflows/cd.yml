@@ -1,0 +1,73 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      break_health:
+        description: 'Deploy a deliberately broken version to demo rollback'
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    name: Deploy with auto-rollback
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: ci-cluster
+
+      - name: Build image
+        run: docker build -t demo-app:${{ github.sha }} ./app
+
+      - name: Load image into cluster
+        run: kind load docker-image demo-app:${{ github.sha }} --name ci-cluster
+
+      - name: Deploy baseline
+        run: |
+          kubectl create namespace demo
+          sed "s|IMAGE_TAG|${{ github.sha }}|" k8s/deployment.yaml | kubectl apply -f -
+          kubectl apply -f k8s/service.yaml
+          kubectl rollout status deployment/demo-app -n demo --timeout=120s
+
+      - name: Smoke test baseline
+        run: |
+          kubectl run curl-baseline --rm -i --restart=Never \
+            --image=curlimages/curl -n demo -- \
+            curl -sf http://demo-app/health
+
+      - name: Deploy new version
+        run: |
+          kubectl set env deployment/demo-app -n demo \
+            APP_VERSION=2.0.0 \
+            BREAK_HEALTH=${{ inputs.break_health || 'false' }}
+
+      - name: Verify rollout, roll back if unhealthy
+        run: |
+          if kubectl rollout status deployment/demo-app -n demo --timeout=90s; then
+            echo "::notice::Deploy succeeded"
+          else
+            echo "::error::New version failed readiness checks - rolling back"
+            kubectl rollout undo deployment/demo-app -n demo
+            kubectl rollout status deployment/demo-app -n demo --timeout=90s
+            echo "::notice::Rolled back to previous version"
+            exit 1
+          fi
+
+      - name: Confirm service still healthy
+        if: always()
+        run: |
+          kubectl run curl-final --rm -i --restart=Never \
+            --image=curlimages/curl -n demo -- \
+            curl -sf http://demo-app/health
+
+      - name: Deployment history
+        if: always()
+        run: |
+          kubectl rollout history deployment/demo-app -n demo
+          kubectl get pods -n demo
