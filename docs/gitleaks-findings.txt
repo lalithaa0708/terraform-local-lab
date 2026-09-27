@@ -1,0 +1,17 @@
+
+    ○
+    │╲
+    │ ○
+    ○ ░
+    ░    gitleaks
+
+Finding:     ...ws_access_key_id = "[1;3;mAKIAQYLPMN5HXR7TZW3K[0m
+Secret:      [1;3;mAKIAQYLPMN5HXR7TZW3K[0m
+RuleID:      aws-access-token
+Entropy:     4.121928
+File:        /Users/sreelalitha/gitleaks-test/leaked.tf
+Line:        1
+Fingerprint: /Users/sreelalitha/gitleaks-test/leaked.tf:aws-access-token:1
+
+[90m7:44PM[0m [32mINF[0m [1mscanned ~43 bytes (43 bytes) in 21.4ms[0m
+[90m7:44PM[0m [33mWRN[0m [1mleaks found: 1[0m
