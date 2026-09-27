@@ -1,0 +1,19 @@
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	﻿2026-09-27T13:43:44.7163359Z ##[group]Run if kubectl rollout status deployment/demo-app -n demo --timeout=90s; then
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7164371Z ^[[36;1mif kubectl rollout status deployment/demo-app -n demo --timeout=90s; then^[[0m
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7165135Z ^[[36;1m  echo "::notice::Deploy succeeded"^[[0m
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7165660Z ^[[36;1melse^[[0m
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7166286Z ^[[36;1m  echo "::error::New version failed readiness checks - rolling back"^[[0m
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7167499Z ^[[36;1m  kubectl rollout undo deployment/demo-app -n demo^[[0m
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7168280Z ^[[36;1m  kubectl rollout status deployment/demo-app -n demo --timeout=90s^[[0m
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7169014Z ^[[36;1m  echo "::notice::Rolled back to previous version"^[[0m
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7169547Z ^[[36;1m  exit 1^[[0m
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7170011Z ^[[36;1mfi^[[0m
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7227644Z shell: /usr/bin/bash -e {0}
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7228147Z ##[endgroup]
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:43:44.7905947Z Waiting for deployment "demo-app" rollout to finish: 1 out of 3 new replicas have been updated...
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:45:14.7849984Z error: timed out waiting for the condition
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:45:14.7879197Z ##[error]New version failed readiness checks - rolling back
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:45:14.8421242Z deployment.apps/demo-app rolled back
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:45:14.9156484Z deployment "demo-app" successfully rolled out
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:45:14.9171553Z ##[notice]Rolled back to previous version
+Deploy with auto-rollback	Verify rollout, roll back if unhealthy	2026-09-27T13:45:14.9174982Z ##[error]Process completed with exit code 1.
