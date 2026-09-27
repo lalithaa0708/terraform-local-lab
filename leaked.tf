@@ -1,1 +1,1 @@
-aws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+aws_access_key_id = "AKIA2E0A8F3B244C9986"
