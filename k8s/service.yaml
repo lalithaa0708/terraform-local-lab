@@ -3,11 +3,14 @@ kind: Service
 metadata:
   name: demo-app
   namespace: demo
+  labels:
+    app: demo-app
 spec:
   selector:
     app: demo-app
   type: NodePort
   ports:
-    - port: 80
+    - name: http
+      port: 80
       targetPort: 8080
       nodePort: 30080

@@ -170,3 +170,39 @@ So the rule needs the shape *and* enough randomness. The practical lesson is
 that a green Gitleaks check means "no secrets matching known signatures", not
 "no secrets". Evidence in `docs/gitleaks-findings.txt` and
 `docs/secret-gate-evidence.txt`.
+
+## Observability
+
+The app exports Prometheus metrics via `prometheus-flask-exporter`. A
+kube-prometheus-stack deployment scrapes it through a ServiceMonitor, and
+PrometheusRule objects define SLO-based alerts.
+
+### Multi-window burn-rate alerting
+
+Rather than "error rate above 1%", which either pages constantly or misses
+slow leaks, there are two windows on the same SLO:
+
+- Fast burn (5m window, 14x budget rate) - fires in ~2 minutes, would page
+- Slow burn (1h window, 3x budget rate) - takes 15+ minutes, would raise a ticket
+
+I confirmed the split by flooding `/error` for four minutes. Fast burn went
+Pending then Firing; slow burn was still Pending twelve minutes later. Same
+incident, different urgency.
+
+Every alert carries a runbook link (`docs/runbooks/`) so whoever is on call
+gets the diagnosis and first commands, not just a red square.
+
+### Testing observability needs different faults than testing deployments
+
+My first attempt at generating errors was to fail the health checks - the same
+trick that tests rollback in the CI/CD project. It produced no errors at all:
+`maxUnavailable: 0` meant broken pods never entered service, so healthy pods
+served every request. I added explicit `/error` and `/slow` fault-injection
+endpoints that bypass readiness, so failures actually reach users.
+
+### Alert noise, visible in the screenshots
+
+Alongside my two SLO alerts, the default rules fire `etcdInsufficientMembers`,
+`etcdMembersDown` and four `TargetDown` alerts - all artefacts of a single-node
+local cluster, none of them real. In the UI they look identical to the real
+ones. That is how alert fatigue starts.

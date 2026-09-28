@@ -1,0 +1,62 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: demo-app-slo
+  namespace: demo
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: demo-app.slo
+      rules:
+        # SLO: 99% of requests succeed. Error budget = 1%.
+        # Fast burn: consuming the monthly budget in ~2 days. Page someone.
+        - alert: ErrorBudgetFastBurn
+          expr: |
+            (
+              sum(rate(flask_http_request_total{namespace="demo",status=~"5.."}[5m]))
+              /
+              sum(rate(flask_http_request_total{namespace="demo"}[5m]))
+            ) > 0.14
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Burning error budget 14x faster than sustainable"
+            runbook: "https://github.com/lalithaa0708/terraform-local-lab/blob/main/docs/runbooks/high-error-rate.md"
+
+        # Slow burn: budget gone in ~10 days. Make a ticket, don't wake anyone.
+        - alert: ErrorBudgetSlowBurn
+          expr: |
+            (
+              sum(rate(flask_http_request_total{namespace="demo",status=~"5.."}[1h]))
+              /
+              sum(rate(flask_http_request_total{namespace="demo"}[1h]))
+            ) > 0.03
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Error budget burning slowly"
+            runbook: "https://github.com/lalithaa0708/terraform-local-lab/blob/main/docs/runbooks/high-error-rate.md"
+
+        # SLO: 99% of requests under 300ms
+        - alert: LatencySLOBreach
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(flask_http_request_duration_seconds_bucket{namespace="demo"}[5m])) by (le)
+            ) > 0.3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "p99 latency above the 300ms objective"
+
+        - alert: PodCrashLooping
+          expr: increase(kube_pod_container_status_restarts_total{namespace="demo"}[10m]) > 3
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod restarting repeatedly"
+            runbook: "https://github.com/lalithaa0708/terraform-local-lab/blob/main/docs/runbooks/crashloop.md"
